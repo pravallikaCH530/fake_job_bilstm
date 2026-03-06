@@ -1,7 +1,5 @@
-streamlit==1.33.0
-tensorflow==2.12.0
-numpy==1.23.5
+tensorflow
+gradio
+numpy
 pandas
 scikit-learn
-nltk
-h5py
