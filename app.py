@@ -17,7 +17,7 @@ st.set_page_config(
 # -------------------------------
 # Load Model and Tokenizer
 # -------------------------------
-model = tf.keras.models.load_model("fake_job_model.h5")
+model = tf.keras.models.load_model("fake_job_model.keras")
 
 with open("tokenizer.pkl", "rb") as f:
     tokenizer = pickle.load(f)
