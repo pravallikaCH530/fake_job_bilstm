@@ -1,190 +1,207 @@
 import streamlit as st
-import tensorflow as tf
 import pickle
 import re
 import string
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+import nltk
+import numpy as np
+import time
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
-# -------------------------------
-# Page Configuration
-# -------------------------------
-st.set_page_config(
-    page_title="Fake Job Detection",
-    page_icon="💼",
-    layout="centered"
-)
+# download resources
+nltk.download('stopwords')
+nltk.download('wordnet')
 
-# -------------------------------
-# Load Model and Tokenizer
-# -------------------------------
-model = tf.keras.models.load_model("fake_job_model.keras")
+# load model
+model = pickle.load(open("fake_job_svm.pkl","rb"))
+tfidf = pickle.load(open("tfidf_vectorizer.pkl","rb"))
 
-with open("tokenizer.pkl", "rb") as f:
-    tokenizer = pickle.load(f)
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
 
-max_len = 200
-
-
-# -------------------------------
-# Text Cleaning Function
-# -------------------------------
+# text cleaning
 def clean_text(text):
 
     text = text.lower()
-
-    text = re.sub(r'http\S+', '', text)
-
-    text = re.sub(r'\d+', '', text)
-
+    text = re.sub(r"http\S+","",text)
+    text = re.sub(r'\d+',"",text)
     text = text.translate(str.maketrans('', '', string.punctuation))
 
-    return text
+    words = text.split()
+    words = [w for w in words if w not in stop_words]
+    words = [lemmatizer.lemmatize(w) for w in words]
+
+    return " ".join(words)
 
 
-# -------------------------------
-# Prediction Function
-# -------------------------------
-def predict_job(text):
+# page config
+st.set_page_config(
+    page_title="AI Fake Job Detector",
+    page_icon="🧠",
+    layout="wide"
+)
 
-    text = clean_text(text)
-
-    seq = tokenizer.texts_to_sequences([text])
-
-    padded = pad_sequences(seq, maxlen=max_len)
-
-    pred = model.predict(padded)[0][0]
-
-    return pred
-
-
-# -------------------------------
-# Custom Styling
-# -------------------------------
+# custom css
 st.markdown("""
 <style>
 
-.main-title {
-    text-align: center;
-    font-size: 38px;
-    font-weight: bold;
-    color: #2c3e50;
+body{
+background:#0e1117;
 }
 
-.sub-title {
-    text-align: center;
-    font-size: 18px;
-    color: gray;
+.title{
+font-size:48px;
+font-weight:700;
+text-align:center;
+color:white;
 }
 
-.result-box {
-    padding: 20px;
-    border-radius: 10px;
-    font-size: 20px;
-    font-weight: bold;
-    text-align: center;
+.subtitle{
+text-align:center;
+color:#9aa0a6;
+font-size:18px;
+margin-bottom:40px;
 }
 
-.real {
-    background-color: #d4edda;
-    color: #155724;
+.card{
+background:#161b22;
+padding:30px;
+border-radius:12px;
+box-shadow:0px 6px 20px rgba(0,0,0,0.3);
 }
 
-.fake {
-    background-color: #f8d7da;
-    color: #721c24;
+.result-real{
+background:#133a1b;
+padding:20px;
+border-radius:10px;
+text-align:center;
+font-size:24px;
+font-weight:bold;
+color:#7CFC98;
 }
 
-.footer {
-    text-align: center;
-    margin-top: 50px;
-    color: gray;
-    font-size: 14px;
+.result-fake{
+background:#3b0d0d;
+padding:20px;
+border-radius:10px;
+text-align:center;
+font-size:24px;
+font-weight:bold;
+color:#ff6b6b;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
+# sidebar
+st.sidebar.title("🧠 Model Information")
 
-# -------------------------------
-# Title Section
-# -------------------------------
-st.markdown('<p class="main-title">💼 Fake Job Detection System</p>', unsafe_allow_html=True)
+st.sidebar.write("Model: TF-IDF + SVM")
+st.sidebar.write("Accuracy: ~95%")
+
+st.sidebar.write("---")
+
+st.sidebar.write("### Example Job")
+
+if st.sidebar.button("Load Fake Job Example"):
+    st.session_state["example"] = """
+Earn $4000 per week from home.
+No experience required.
+Limited positions available.
+Apply now!
+"""
+
+# title
+st.markdown('<p class="title">AI Fake Job Detection</p>', unsafe_allow_html=True)
 
 st.markdown(
-    '<p class="sub-title">Detect fraudulent job postings using NLP and Deep Learning (Bidirectional LSTM)</p>',
-    unsafe_allow_html=True
+'<p class="subtitle">Detect fraudulent job postings using Machine Learning</p>',
+unsafe_allow_html=True
 )
 
-st.write("")
+# layout
+col1, col2 = st.columns([3,2])
 
-# -------------------------------
-# Input Section
-# -------------------------------
-st.subheader("📄 Enter Job Description")
+with col1:
 
-job_text = st.text_area(
-    "",
-    height=200,
-    placeholder="Paste the job description here..."
-)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
 
-st.write("")
+    job_text = st.text_area(
+        "Paste Job Description",
+        value=st.session_state.get("example",""),
+        height=250,
+        placeholder="Paste full job description here..."
+    )
 
-# -------------------------------
-# Prediction Button
-# -------------------------------
-if st.button("🔍 Analyze Job Posting"):
+    analyze = st.button("🔎 Analyze Job Posting")
 
-    if job_text.strip() == "":
-        st.warning("Please enter a job description.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col2:
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
+    st.subheader("How it Works")
+
+    st.write("""
+1. Job text is cleaned using NLP  
+2. TF-IDF converts text to features  
+3. SVM model predicts job authenticity  
+4. Confidence score is generated
+""")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# prediction
+if analyze and job_text.strip() != "":
+
+    with st.spinner("AI is analyzing the job posting..."):
+        time.sleep(1.5)
+
+    cleaned = clean_text(job_text)
+
+    vector = tfidf.transform([cleaned])
+
+    prediction = model.predict(vector)
+
+    # UPDATED CONFIDENCE CALCULATION
+    proba = model.predict_proba(vector)[0]
+
+    fake_prob = proba[1]
+    real_prob = proba[0]
+
+    confidence = max(fake_prob, real_prob)
+
+    st.write("")
+    st.write("### AI Detection Result")
+
+    if prediction[0] == 1:
+
+        st.markdown(
+        '<div class="result-fake">⚠ Fake Job Posting Detected</div>',
+        unsafe_allow_html=True
+        )
+
+        st.write("Fake Probability:", round(fake_prob*100,2), "%")
 
     else:
 
-        prediction = predict_job(job_text)
+        st.markdown(
+        '<div class="result-real">✅ Legitimate Job Posting</div>',
+        unsafe_allow_html=True
+        )
 
-        probability = prediction * 100
+        st.write("Real Probability:", round(real_prob*100,2), "%")
 
-        if prediction > 0.35:
+    st.write("")
 
-            st.markdown(
-                f'<div class="result-box fake">🚨 Fake Job Detected<br>Confidence: {probability:.2f}%</div>',
-                unsafe_allow_html=True
-            )
+    st.progress(confidence)
 
-        else:
-
-            st.markdown(
-                f'<div class="result-box real">✅ Legitimate Job Posting<br>Confidence: {100-probability:.2f}%</div>',
-                unsafe_allow_html=True
-            )
+    st.write("Confidence Score:", round(confidence*100,2), "%")
 
 
-# -------------------------------
-# Divider
-# -------------------------------
+st.write("")
 st.write("---")
 
-# -------------------------------
-# About Section
-# -------------------------------
-st.subheader("📊 About This Project")
-
-st.write("""
-This system detects **fraudulent job postings** using **Natural Language Processing and Deep Learning**.
-
-Model used:
-- Bidirectional LSTM
-- Text Tokenization
-- Sequence Padding
-
-Accuracy Achieved:
-**~97%**
-""")
-
-# -------------------------------
-# Footer
-# -------------------------------
-st.markdown(
-    '<p class="footer">Built using Python, TensorFlow, NLP and Streamlit</p>',
-    unsafe_allow_html=True
-)
+st.caption("Fake Job Detection System • Machine Learning Project")
