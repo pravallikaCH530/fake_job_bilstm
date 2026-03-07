@@ -1,6 +1,6 @@
-tensorflow
-gradio
-numpy
-pandas
-scikit-learn
 streamlit
+scikit-learn
+pandas
+numpy
+nltk
+joblib
